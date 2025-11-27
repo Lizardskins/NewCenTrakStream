@@ -116,6 +116,17 @@ function autoDetectAndParse(buffer) {
         if (buffer.length === len) {
             return parseTagStreamingPacket(buffer);
         }
+        // Fallback: many deployments send 115-byte tag streams; if mismatch, still try
+        if (buffer.length === 115) {
+            try {
+                return parseTagStreamingPacket(buffer);
+            } catch (e) {
+                // Last resort: run default tag descriptors over the frame
+                const fields = parseFrame(buffer);
+                fields.warning = `Tag streaming parse failed (expected ${len}, got ${buffer.length}): ${e.message}`;
+                return fields;
+            }
+        }
     } catch { }
 
     // Monitor streaming detection by expected length (~91 bytes)
@@ -123,6 +134,16 @@ function autoDetectAndParse(buffer) {
         const mlen = expectedMonitorStreamingLength();
         if (buffer.length === mlen) {
             return parseMonitorStreamingPacket(buffer);
+        }
+        // Fallback: if length is 91, attempt monitor streaming even if computed differs
+        if (buffer.length === 91) {
+            try {
+                return parseMonitorStreamingPacket(buffer);
+            } catch (e) {
+                const fields = parseFrame(buffer);
+                fields.warning = `Monitor streaming parse failed (expected ${mlen}, got ${buffer.length}): ${e.message}`;
+                return fields;
+            }
         }
     } catch { }
 
@@ -138,6 +159,19 @@ udp.on('listening', () => {
     const addr = udp.address();
     log(`Listening (UDP) on ${addr.address}:${addr.port}`);
     log(`Output mode: ${OUTPUT_MODE}`);
+    // Report expected streaming lengths to verify descriptor selections
+    try {
+        const tlen = expectedTagStreamingLength?.();
+        if (typeof tlen === 'number') {
+            log(`Expected tag streaming length: ${tlen} bytes`);
+        }
+    } catch { }
+    try {
+        const mlen = expectedMonitorStreamingLength?.();
+        if (typeof mlen === 'number') {
+            log(`Expected monitor streaming length: ${mlen} bytes`);
+        }
+    } catch { }
 });
 
 udp.on('message', (msg, rinfo) => {

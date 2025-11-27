@@ -175,7 +175,15 @@ export function parseMonitorFrame(buffer) {
 // [11-12] Header Checksum (2 bytes, little-endian)
 
 export function parseBulkHeader(buffer) {
-    if (buffer.length < 13) {
+    // Treat bulk header as 16 bytes per user's note (headerBytes = 16)
+    // Layout (based on prior 13-byte version, with 3-byte padding/reserved at end):
+    // [0] Cycle Counter (1 byte)
+    // [1-6] Star MAC Id (6 bytes, left-to-right hex pairs)
+    // [7-8] Data Length (2 bytes, little-endian)
+    // [9-10] Data Checksum (2 bytes, little-endian)
+    // [11-12] Header Checksum (2 bytes, little-endian)
+    // [13-15] Reserved/Padding (3 bytes)
+    if (buffer.length < 16) {
         throw new Error(`Bulk header too short: ${buffer.length}`);
     }
     const cycleCounter = buffer[0];
@@ -184,6 +192,7 @@ export function parseBulkHeader(buffer) {
     const dataLength = buffer.readUInt16LE(7); // Byte[7-8]
     const dataChecksumLE = buffer.readUInt16LE(9); // Byte[9-10]
     const headerChecksumLE = buffer.readUInt16LE(11); // Byte[11-12]
+    const reserved = buffer.subarray(13, 16).toString('hex');
 
     return {
         cycleCounter,
@@ -191,7 +200,8 @@ export function parseBulkHeader(buffer) {
         dataLength,
         dataChecksum: dataChecksumLE,
         headerChecksum: headerChecksumLE,
-        headerHex: buffer.subarray(0, 13).toString('hex'),
+        reserved,
+        headerHex: buffer.subarray(0, 16).toString('hex'),
     };
 }
 
@@ -201,7 +211,7 @@ export function parseBulkHeader(buffer) {
 export function parseBulkPacket(buffer, recordLength, descriptors, verifyChecksums = false) {
     // Extract header
     const header = parseBulkHeader(buffer);
-    const payload = buffer.subarray(13, 13 + header.dataLength);
+    const payload = buffer.subarray(16, 16 + header.dataLength);
     if (payload.length !== header.dataLength) {
         throw new Error(`Payload length mismatch: got ${payload.length}, header says ${header.dataLength}`);
     }
@@ -381,23 +391,32 @@ export function parseBulkDataPayload(payloadBuffer) {
             records.push({ type: 'monitor', ...parsed });
             idx += 13;
         } else {
-            // Unknown packet identifier; attempt to skip 1 byte to resync and avoid infinite loop
-            records.push({ type: 'unknown', packetId: pid, offset: idx });
-            idx += 1;
+            // Unknown byte, attempt resync by scanning ahead for next valid packet identifier (0x01 or 0x03)
+            let found = -1;
+            for (let j = idx + 1; j < payloadBuffer.length; j++) {
+                const b = payloadBuffer[j];
+                if (b === 1 || b === 3) { found = j; break; }
+            }
+            // Record unknown region for visibility
+            const end = found === -1 ? payloadBuffer.length : found;
+            records.push({ type: 'unknown', packetId: pid, offset: idx, bytesSkipped: end - idx });
+            // Advance to next suspected PID or stop
+            if (found === -1) break; else idx = found;
         }
     }
     return { count: records.length, records };
 }
 
 // Convenience: parse a buffer containing header+payload in one go
-export function parseBulkBuffer(buffer, verifyChecksums = false) {
+export function parseBulkBuffer(buffer, verifyChecksums = true) {
     const header = parseBulkHeader(buffer);
-    const payload = buffer.subarray(13, 13 + header.dataLength);
+    const payload = buffer.subarray(16, 16 + header.dataLength);
     const { count, records } = parseBulkDataPayload(payload);
 
     let checksum = undefined;
     if (verifyChecksums) {
         // Header checksum: sum of first 11 bytes (exclude last 2 bytes at [11-12])
+        // Note: With 16-byte header, checksum algorithm may differ; keeping prior assumption.
         const hdrSum = checksumSum(buffer.subarray(0, 11));
         const hdrValid = (hdrSum & 0xffff) === header.headerChecksum;
         // Data checksum: sum of payload bytes
@@ -411,16 +430,17 @@ export function parseBulkBuffer(buffer, verifyChecksums = false) {
             dataExpected: header.dataChecksum,
             dataValid: dataValid,
         };
+        // If checksum invalid, we still return records but flag validity for caller to decide.
     }
     return { mode: 'bulk', header, count, records, checksum };
 }
 
 // Parse a buffer that may contain multiple back-to-back bulk frames
-export function parseBulkBufferMulti(buffer, verifyChecksums = false) {
+export function parseBulkBufferMulti(buffer, verifyChecksums = true) {
     const bulks = [];
     let offset = 0;
-    while (offset + 13 <= buffer.length) {
-        const hdrSlice = buffer.subarray(offset, offset + 13);
+    while (offset + 16 <= buffer.length) {
+        const hdrSlice = buffer.subarray(offset, offset + 16);
         let header;
         try {
             header = parseBulkHeader(hdrSlice);
@@ -428,7 +448,7 @@ export function parseBulkBufferMulti(buffer, verifyChecksums = false) {
             // Not a valid header; break to avoid mis-parsing
             break;
         }
-        const totalLen = 13 + header.dataLength;
+        const totalLen = 16 + header.dataLength;
         if (offset + totalLen > buffer.length) {
             // Incomplete payload left; stop
             break;
@@ -439,6 +459,54 @@ export function parseBulkBufferMulti(buffer, verifyChecksums = false) {
         offset += totalLen;
     }
     return { mode: 'bulk-multi', frames: bulks, bytesConsumed: offset, remaining: buffer.length - offset };
+}
+
+// ============================================================================
+// Header + Payload router
+// Incoming UDP buffers are always: [16-byte Header] -> [Single OR Bulk payload]
+// - If payload starts with 0x01 or 0x03 and dataLength matches exactly one packet size
+//   (10 for tag, 13 for monitor), treat as a single message.
+// - Otherwise, treat as bulk and parse multiple messages by PID/length until payload end.
+// Returns a normalized object with mode: 'single' | 'bulk'
+// ============================================================================
+export function parseHeaderAndRoute(buffer, verifyChecksums = true) {
+    const header = parseBulkHeader(buffer);
+    const payload = buffer.subarray(16, 16 + header.dataLength);
+    if (payload.length !== header.dataLength) {
+        throw new Error(`Payload length mismatch: got ${payload.length}, header says ${header.dataLength}`);
+    }
+
+    // Optional checksum verification
+    let checksum = undefined;
+    if (verifyChecksums) {
+        const hdrSum = checksumSum(buffer.subarray(0, 11));
+        const hdrValid = (hdrSum & 0xffff) === header.headerChecksum;
+        const dataSum = checksumSum(payload);
+        const dataValid = (dataSum & 0xffff) === header.dataChecksum;
+        checksum = {
+            headerCalc: hdrSum & 0xffff,
+            headerExpected: header.headerChecksum,
+            headerValid: hdrValid,
+            dataCalc: dataSum & 0xffff,
+            dataExpected: header.dataChecksum,
+            dataValid: dataValid,
+        };
+    }
+
+    // Route: single vs bulk
+    const pid = payload[0];
+    if (pid === 1 && payload.length === 10) {
+        const rec = parseTagLocationPacket(payload);
+        return { mode: 'single', header, record: { type: 'tag', ...rec }, checksum };
+    }
+    if (pid === 3 && payload.length === 13) {
+        const rec = parseMonitorDataPacket(payload);
+        return { mode: 'single', header, record: { type: 'monitor', ...rec }, checksum };
+    }
+
+    // Fallback to bulk parse of payload with PID segmentation
+    const { count, records } = parseBulkDataPayload(payload);
+    return { mode: 'bulk', header, count, records, checksum };
 }
 
 // ---------------- Checksum (API 1.4) ----------------
