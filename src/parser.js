@@ -207,6 +207,27 @@ export function parseBulkHeader(buffer) {
     };
 }
 
+// Compute checksum variants using only the 16-byte header
+export function computeHeaderChecksumVariants(headerBuf16) {
+    if (!Buffer.isBuffer(headerBuf16) || headerBuf16.length < 16) {
+        return { error: 'header buffer must be 16 bytes' };
+    }
+    const expected = headerBuf16.readUInt16LE(11);
+    const sum13 = checksumSum(headerBuf16.subarray(0, 11)) & 0xffff;
+    const sum16 = (checksumSum(headerBuf16.subarray(0, 11)) + checksumSum(headerBuf16.subarray(13, 16))) & 0xffff;
+    // Variant C: sum all 16 header bytes except the 2 checksum bytes at [11..12]
+    const sumC = (checksumSum(headerBuf16.subarray(0, 11)) + checksumSum(headerBuf16.subarray(13, 16))) & 0xffff;
+    return {
+        headerCalc13: sum13,
+        headerCalc16: sum16,
+        headerCalcAllNoChecksum: sumC,
+        headerExpected: expected,
+        headerValid13: sum13 === expected,
+        headerValid16: sum16 === expected,
+        headerValidAllNoChecksum: sumC === expected,
+    };
+}
+
 // Given a UDP payload that carries only the header or only the data (per spec),
 // callers should assemble as needed. This helper assumes a single buffer containing
 // header+data for convenience when available.
