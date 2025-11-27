@@ -217,13 +217,31 @@ export function computeHeaderChecksumVariants(headerBuf16) {
     const sum16 = (checksumSum(headerBuf16.subarray(0, 11)) + checksumSum(headerBuf16.subarray(13, 16))) & 0xffff;
     // Variant C: sum all 16 header bytes except the 2 checksum bytes at [11..12]
     const sumC = (checksumSum(headerBuf16.subarray(0, 11)) + checksumSum(headerBuf16.subarray(13, 16))) & 0xffff;
+    // Variant D: sum of 16-bit LE words, excluding the checksum word at [11..12]
+    let wordSum13 = 0;
+    for (let i = 0; i <= 9; i += 2) { // bytes 0..10 (11 bytes -> include words at 0,2,4,6,8; and add single byte 10)
+        if (i + 1 < 11) {
+            wordSum13 += headerBuf16.readUInt16LE(i);
+        } else {
+            // last single byte (index 10) if odd length, add as-is
+            wordSum13 += headerBuf16[10];
+        }
+    }
+    wordSum13 &= 0xffff;
+    let wordSum16 = wordSum13;
+    // include padding [13] and starId [14..15] as bytes/word
+    wordSum16 = (wordSum16 + headerBuf16[13] + headerBuf16.readUInt16LE(14)) & 0xffff;
     return {
         headerCalc13: sum13,
         headerCalc16: sum16,
         headerCalcAllNoChecksum: sumC,
+        headerCalcWord13: wordSum13,
+        headerCalcWord16: wordSum16,
         headerExpected: expected,
         headerValid13: sum13 === expected,
         headerValid16: sum16 === expected,
+        headerValidWord13: wordSum13 === expected,
+        headerValidWord16: wordSum16 === expected,
         headerValidAllNoChecksum: sumC === expected,
     };
 }
