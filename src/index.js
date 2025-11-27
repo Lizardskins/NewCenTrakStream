@@ -14,6 +14,7 @@ import {
     parseMonitorStreamingPacket,
     expectedMonitorStreamingLength
 } from './parser.js';
+import { parseHeaderAndRoute, parseBulkHeader } from './parser.js';
 
 // Resolve project root for dotenv
 const __filename = fileURLToPath(import.meta.url);
@@ -81,6 +82,11 @@ function autoDetectAndParse(buffer) {
 
     const firstByte = buffer[0];
 
+    // Ignore standalone headers here; they are handled by the header/payload router
+    if (buffer.length === 16) {
+        return { mode: 'header', info: 'Standalone header received' };
+    }
+
     // Single tag location packet (Packet ID = 1, length = 10)
     if (firstByte === 1 && buffer.length === 10) {
         return { mode: 'single', ...parseTagLocationPacket(buffer) };
@@ -92,10 +98,10 @@ function autoDetectAndParse(buffer) {
     }
 
     // Bulk mode: header is 13 bytes. Try parsing if buffer is long enough and header's length matches.
-    if (buffer.length >= 13) {
+    if (buffer.length >= 16) {
         try {
             const headerDataLength = buffer.readUInt16LE(7);
-            const totalExpected = 13 + headerDataLength;
+            const totalExpected = 16 + headerDataLength;
             if (buffer.length >= totalExpected) {
                 // If buffer contains multiple bulk frames back-to-back, parse them all
                 const multi = parseBulkBufferMulti(buffer, true);
@@ -178,11 +184,36 @@ udp.on('message', (msg, rinfo) => {
     // Basic receive log to help diagnose input issues
     log(`Received ${msg.length} bytes from ${rinfo.address}:${rinfo.port}`);
     try {
-        // Auto-detect message type based on first byte and length
+        // Route header+payload pairs: first a 16-byte header, then a payload buffer.
+        const key = `${rinfo.address}:${rinfo.port}`;
+        if (!udp._pending) udp._pending = new Map();
+        const pending = udp._pending.get(key);
+
+        if (msg.length === 16) {
+            // Store header and expected payload length using parseBulkHeader
+            const header = parseBulkHeader(msg);
+            udp._pending.set(key, { header, headerBuf: msg, expected: header.dataLength });
+            const parsed = { mode: 'header', header, _from: key, _hex: msg.toString('hex') };
+            output(parsed);
+            return;
+        }
+
+        if (pending) {
+            // We have a stored header; consume this as payload
+            const headerBuf = pending.headerBuf;
+            const combined = Buffer.concat([headerBuf, msg]);
+            const routed = parseHeaderAndRoute(combined, true);
+            routed._from = key;
+            routed._hex = msg.toString('hex');
+            output(routed);
+            // Clear pending after consumption
+            udp._pending.delete(key);
+            return;
+        }
+
+        // If no pending header, fall back to auto-detect on standalone buffers
         const parsed = autoDetectAndParse(msg);
-        // Attach sender info for context
-        parsed._from = `${rinfo.address}:${rinfo.port}`;
-        // Include raw hex preview for debugging small messages
+        parsed._from = key;
         parsed._hex = msg.toString('hex');
         output(parsed);
     } catch (err) {
