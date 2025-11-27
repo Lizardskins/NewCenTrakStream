@@ -175,32 +175,34 @@ export function parseMonitorFrame(buffer) {
 // [11-12] Header Checksum (2 bytes, little-endian)
 
 export function parseBulkHeader(buffer) {
-    // Treat bulk header as 16 bytes per user's note (headerBytes = 16)
-    // Layout (based on prior 13-byte version, with 3-byte padding/reserved at end):
-    // [0] Cycle Counter (1 byte)
-    // [1-6] Star MAC Id (6 bytes, left-to-right hex pairs)
-    // [7-8] Data Length (2 bytes, little-endian)
-    // [9-10] Data Checksum (2 bytes, little-endian)
-    // [11-12] Header Checksum (2 bytes, little-endian)
-    // [13-15] Reserved/Padding (3 bytes)
+    // Using 16-byte header: standard 13 bytes + 1 padding + 2-byte Star ID (as configured)
+    // Layout:
+    // [0] Cycle Counter (1)
+    // [1-6] Star MAC (6)
+    // [7-8] Data Length (2, LE)
+    // [9-10] Data Checksum (2, LE)
+    // [11-12] Header Checksum (2, LE)
+    // [13] Padding (1)
+    // [14-15] Star ID (2)
     if (buffer.length < 16) {
         throw new Error(`Bulk header too short: ${buffer.length}`);
     }
     const cycleCounter = buffer[0];
     const starMacBytes = buffer.subarray(1, 7);
     const starMac = starMacBytes.toString('hex').match(/.{1,2}/g)?.join(':') ?? '';
-    const dataLength = buffer.readUInt16LE(7); // Byte[7-8]
-    const dataChecksumLE = buffer.readUInt16LE(9); // Byte[9-10]
-    const headerChecksumLE = buffer.readUInt16LE(11); // Byte[11-12]
-    const reserved = buffer.subarray(13, 16).toString('hex');
-
+    const dataLength = buffer.readUInt16LE(7);
+    const dataChecksumLE = buffer.readUInt16LE(9);
+    const headerChecksumLE = buffer.readUInt16LE(11);
+    const padding = buffer[13];
+    const starId = buffer.readUInt16LE(14);
     return {
         cycleCounter,
         starMac,
         dataLength,
         dataChecksum: dataChecksumLE,
         headerChecksum: headerChecksumLE,
-        reserved,
+        padding,
+        starId,
         headerHex: buffer.subarray(0, 16).toString('hex'),
     };
 }
