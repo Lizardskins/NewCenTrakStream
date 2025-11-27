@@ -212,7 +212,8 @@ export function computeHeaderChecksumVariants(headerBuf16) {
     if (!Buffer.isBuffer(headerBuf16) || headerBuf16.length < 16) {
         return { error: 'header buffer must be 16 bytes' };
     }
-    const expected = headerBuf16.readUInt16LE(11);
+    const expectedLE = headerBuf16.readUInt16LE(11);
+    const expectedBE = headerBuf16.readUInt16BE(11);
     const sum13 = checksumSum(headerBuf16.subarray(0, 11)) & 0xffff;
     const sum16 = (checksumSum(headerBuf16.subarray(0, 11)) + checksumSum(headerBuf16.subarray(13, 16))) & 0xffff;
     // Variant C: sum all 16 header bytes except the 2 checksum bytes at [11..12]
@@ -231,18 +232,42 @@ export function computeHeaderChecksumVariants(headerBuf16) {
     let wordSum16 = wordSum13;
     // include padding [13] and starId [14..15] as bytes/word
     wordSum16 = (wordSum16 + headerBuf16[13] + headerBuf16.readUInt16LE(14)) & 0xffff;
+    // One's-complement (invert) variants
+    const inv13 = (~sum13) & 0xffff;
+    const inv16 = (~sum16) & 0xffff;
+    const invC = (~sumC) & 0xffff;
+    const invWord13 = (~wordSum13) & 0xffff;
+    const invWord16 = (~wordSum16) & 0xffff;
+
     return {
         headerCalc13: sum13,
         headerCalc16: sum16,
         headerCalcAllNoChecksum: sumC,
         headerCalcWord13: wordSum13,
         headerCalcWord16: wordSum16,
-        headerExpected: expected,
-        headerValid13: sum13 === expected,
-        headerValid16: sum16 === expected,
-        headerValidWord13: wordSum13 === expected,
-        headerValidWord16: wordSum16 === expected,
-        headerValidAllNoChecksum: sumC === expected,
+        headerExpectedLE: expectedLE,
+        headerExpectedBE: expectedBE,
+        headerValid13: sum13 === expectedLE,
+        headerValid16: sum16 === expectedLE,
+        headerValidWord13: wordSum13 === expectedLE,
+        headerValidWord16: wordSum16 === expectedLE,
+        headerValidAllNoChecksum: sumC === expectedLE,
+        headerValid13_BE: sum13 === expectedBE,
+        headerValid16_BE: sum16 === expectedBE,
+        headerValidWord13_BE: wordSum13 === expectedBE,
+        headerValidWord16_BE: wordSum16 === expectedBE,
+        headerValidAllNoChecksum_BE: sumC === expectedBE,
+        // Inverted matches
+        headerValid13_inv: inv13 === expectedLE,
+        headerValid16_inv: inv16 === expectedLE,
+        headerValidAllNoChecksum_inv: invC === expectedLE,
+        headerValidWord13_inv: invWord13 === expectedLE,
+        headerValidWord16_inv: invWord16 === expectedLE,
+        headerCalc13_inv: inv13,
+        headerCalc16_inv: inv16,
+        headerCalcAllNoChecksum_inv: invC,
+        headerCalcWord13_inv: invWord13,
+        headerCalcWord16_inv: invWord16,
     };
 }
 
