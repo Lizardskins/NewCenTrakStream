@@ -194,11 +194,14 @@ udp.on('message', (msg, rinfo) => {
             const header = parseBulkHeader(msg);
             // Support multiple concurrent header/payload pairs per sender (queue)
             const queue = udp._pending.get(key) || [];
-            queue.push({ header, headerBuf: msg, expected: header.dataLength, chunks: [], received: 0 });
+            // Heuristic: prefer alt header dataLengthLE if it matches observed small payloads
+            const altHdrForQueue = parseBulkHeaderUserStyle(msg);
+            const expectedLen = (altHdrForQueue?.dataLengthLE && altHdrForQueue.dataLengthLE > 0 && altHdrForQueue.dataLengthLE < 65536) ? altHdrForQueue.dataLengthLE : header.dataLength;
+            queue.push({ header, headerBuf: msg, expected: expectedLen, chunks: [], received: 0 });
             udp._pending.set(key, queue);
             const hdrChecks = computeHeaderChecksumVariants(msg);
-            const altHeader = parseBulkHeaderUserStyle(msg);
-            const parsed = { mode: 'header', header, altHeader, checksum: hdrChecks, _from: key, _hex: msg.toString('hex') };
+            const altHdr = parseBulkHeaderUserStyle(msg);
+            const parsed = { mode: 'header', header, altHeader: altHdr, checksum: hdrChecks, _from: key, _hex: msg.toString('hex') };
             output(parsed);
             return;
         }
