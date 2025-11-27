@@ -1,4 +1,4 @@
-import net from 'node:net';
+import dgram from 'node:dgram';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,7 +43,7 @@ if (tagsConfig) {
     log(`Loaded tags config: ${Array.isArray(tagsConfig) ? tagsConfig.length : 0} field descriptors`);
 }
 
-let server;
+let udp;
 
 function log(msg, ...args) {
     const ts = new Date().toISOString();
@@ -101,50 +101,48 @@ function autoDetectAndParse(buffer) {
     return parseFrame(buffer);
 }
 
-// Create TCP server to listen for incoming CenTrak data
-server = net.createServer((socket) => {
-    const clientAddr = `${socket.remoteAddress}:${socket.remotePort}`;
-    log(`Client connected: ${clientAddr}`);
+// Create UDP server to listen for incoming CenTrak data
+udp = dgram.createSocket('udp4');
 
-    socket.on('data', (chunk) => {
-        try {
-            // Auto-detect message type based on first byte and length
-            const parsed = autoDetectAndParse(chunk);
-            output(parsed);
-        } catch (err) {
-            log('Parse error:', err.message);
-            // Optionally keep raw data that failed to parse
-            if (OUTPUT_MODE !== 'raw') {
-                const dumpPath = path.resolve(__dirname, '..', 'parse-errors.bin');
-                fs.appendFileSync(dumpPath, chunk);
-            }
-        }
-    });
-
-    socket.on('error', (err) => {
-        log(`Socket error from ${clientAddr}: ${err.message}`);
-    });
-
-    socket.on('end', () => {
-        log(`Client disconnected: ${clientAddr}`);
-    });
+udp.on('listening', () => {
+    const addr = udp.address();
+    log(`Listening (UDP) on ${addr.address}:${addr.port}`);
+    log(`Output mode: ${OUTPUT_MODE}`);
 });
 
-server.on('error', (err) => {
-    log(`Server error: ${err.message}`);
+udp.on('message', (msg, rinfo) => {
+    try {
+        // Auto-detect message type based on first byte and length
+        const parsed = autoDetectAndParse(msg);
+        // Attach sender info for context
+        parsed._from = `${rinfo.address}:${rinfo.port}`;
+        output(parsed);
+    } catch (err) {
+        log('Parse error:', err.message);
+        if (OUTPUT_MODE !== 'raw') {
+            const dumpPath = path.resolve(__dirname, '..', 'parse-errors.bin');
+            fs.appendFileSync(dumpPath, msg);
+        }
+    }
+});
+
+udp.on('error', (err) => {
+    log(`UDP server error: ${err.message}`);
+    udp.close();
     process.exit(1);
 });
 
-server.listen(PORT, HOST, () => {
-    log(`Listening on ${HOST}:${PORT}`);
-    log(`Output mode: ${OUTPUT_MODE}`);
-});
+udp.bind(PORT, HOST);
 
 // Graceful shutdown
 process.on('SIGINT', () => {
     log('Shutting down...');
-    server.close(() => {
-        log('Server closed');
+    try {
+        udp.close(() => {
+            log('UDP server closed');
+            process.exit(0);
+        });
+    } catch {
         process.exit(0);
-    });
+    }
 });
