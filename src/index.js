@@ -10,7 +10,9 @@ import {
     parseBulkBuffer,
     parseBulkBufferMulti,
     parseTagStreamingPacket,
-    expectedTagStreamingLength
+    expectedTagStreamingLength,
+    parseMonitorStreamingPacket,
+    expectedMonitorStreamingLength
 } from './parser.js';
 
 // Resolve project root for dotenv
@@ -113,6 +115,14 @@ function autoDetectAndParse(buffer) {
         const len = expectedTagStreamingLength();
         if (buffer.length === len) {
             return parseTagStreamingPacket(buffer);
+        }
+    } catch { }
+
+    // Monitor streaming detection by expected length (~91 bytes)
+    try {
+        const mlen = expectedMonitorStreamingLength();
+        if (buffer.length === mlen) {
+            return parseMonitorStreamingPacket(buffer);
         }
     } catch { }
 

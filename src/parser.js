@@ -967,3 +967,56 @@ export function parseTagStreamingPacket(buffer) {
     const fields = runDescriptors(buffer, desc);
     return { type: 'tag-stream', bytes: buffer.length, fields };
 }
+
+// ============================================================================
+// Monitor streaming parsing (fixed-length ~91B frames)
+// ============================================================================
+const defaultMonitorStreamingIndexes = [
+    1, 4, 9, 11, 12, 13, 38, 39, 40, 8
+];
+
+function loadMonitorsConfig() {
+    const configPath = path.resolve(__dirname, '..', 'config', 'monitors.json');
+    if (!fs.existsSync(configPath)) return null;
+    try {
+        return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    } catch (e) {
+        console.warn('Failed to parse monitors.json:', e.message);
+        return null;
+    }
+}
+
+export function buildMonitorStreamingDescriptors(selected = defaultMonitorStreamingIndexes) {
+    const config = loadMonitorsConfig();
+    const byIndex = new Map();
+    if (Array.isArray(config)) {
+        for (const f of config) byIndex.set(f.index, f);
+    }
+    const descriptors = [];
+    let start = 0;
+    for (const idx of selected) {
+        const meta = byIndex.get(idx);
+        if (!meta) continue;
+        const parseFn = monitorParseFunctions[idx] || ((msg) => msg);
+        descriptors.push({ name: meta.Name, bytes: meta.bytes, start, parse: parseFn, index: idx });
+        start += meta.bytes;
+    }
+    return descriptors;
+}
+
+export function expectedMonitorStreamingLength() {
+    return buildMonitorStreamingDescriptors().reduce((acc, d) => acc + d.bytes, 0);
+}
+
+export function parseMonitorStreamingPacket(buffer) {
+    const desc = buildMonitorStreamingDescriptors();
+    const total = desc.reduce((a, d) => a + d.bytes, 0);
+    if (buffer.length !== total) {
+        if (buffer.length < total) {
+            throw new Error(`Monitor streaming length mismatch: got ${buffer.length}, expected ${total}`);
+        }
+        buffer = buffer.subarray(0, total);
+    }
+    const fields = runDescriptors(buffer, desc);
+    return { type: 'monitor-stream', bytes: buffer.length, fields };
+}
