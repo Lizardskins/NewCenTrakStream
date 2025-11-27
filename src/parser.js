@@ -561,6 +561,49 @@ export function parseBulkDataPayload(payloadBuffer) {
     return { count: records.length, records };
 }
 
+// Fallback parser: treat payload as a concatenation of streaming frames (115B tags, 91B monitors)
+export function parseStreamingBulkPayload(payloadBuffer) {
+    const records = [];
+    let idx = 0;
+    const TAG_LEN = 115;
+    const MON_LEN = 91;
+    while (idx < payloadBuffer.length) {
+        const remaining = payloadBuffer.length - idx;
+        if (remaining < 1) break;
+        const pid = payloadBuffer[idx];
+        let expectedLen = 0;
+        if (pid === 0x01) expectedLen = TAG_LEN;
+        else if (pid === 0x03) expectedLen = MON_LEN;
+        else {
+            // Unknown leading byte; attempt resync by scanning ahead
+            let found = -1;
+            for (let j = idx + 1; j < payloadBuffer.length; j++) {
+                const b = payloadBuffer[j];
+                if (b === 0x01 || b === 0x03) { found = j; break; }
+            }
+            if (found === -1) break; else { idx = found; continue; }
+        }
+
+        if (remaining < expectedLen) break; // incomplete trailing frame
+
+        const slice = payloadBuffer.subarray(idx + 1, idx + expectedLen); // exclude the leading PID byte
+        try {
+            if (pid === 0x01) {
+                const parsed = parseTagStreamingPacket(slice);
+                records.push({ type: 'tag-stream', pid, bytes: expectedLen - 1, fields: parsed.fields });
+            } else {
+                const parsed = parseMonitorStreamingPacket(slice);
+                records.push({ type: 'monitor-stream', pid, bytes: expectedLen - 1, fields: parsed.fields });
+            }
+        } catch (e) {
+            // If parsing fails, stop to avoid mis-consumption
+            break;
+        }
+        idx += expectedLen;
+    }
+    return { count: records.length, records, bytesConsumed: idx, remaining: payloadBuffer.length - idx };
+}
+
 // Convenience: parse a buffer containing header+payload in one go
 export function parseBulkBuffer(buffer, verifyChecksums = true) {
     const header = parseBulkHeader(buffer);
@@ -677,7 +720,58 @@ export function parseHeaderAndRoute(buffer, verifyChecksums = true) {
     }
 
     // Fallback to bulk parse of payload with PID segmentation
-    const { count, records } = parseBulkDataPayload(payload);
+    let { count, records } = parseBulkDataPayload(payload);
+    if (count === 0) {
+        // Try streaming-frame concatenation fallback (115/91)
+        const streamParsed = parseStreamingBulkPayload(payload);
+        count = streamParsed.count;
+        records = streamParsed.records;
+        return { mode: 'bulk-stream', header, count, records, checksum, remaining: streamParsed.remaining };
+    }
+    return { mode: 'bulk', header, count, records, checksum };
+}
+
+// Variant that trusts an externally supplied expectedLength for payload size.
+// Useful when header.dataLength differs by deployment, but we know the real payload size.
+export function parseHeaderAndRouteFlexible(buffer, expectedLength, verifyChecksums = true) {
+    const header = parseBulkHeader(buffer);
+    const payload = buffer.subarray(16, 16 + expectedLength);
+    // Optional checksum verification aligned to provided expectedLength
+    let checksum = undefined;
+    if (verifyChecksums) {
+        const hdrSumA = checksumSum(buffer.subarray(0, 11));
+        const hdrPart1 = buffer.subarray(0, 11);
+        const hdrPart2 = buffer.subarray(13, 16);
+        const hdrSumB = (checksumSum(hdrPart1) + checksumSum(hdrPart2)) & 0xffff;
+        const dataSum = checksumSum(payload);
+        checksum = {
+            headerCalc13: hdrSumA & 0xffff,
+            headerCalc16: hdrSumB & 0xffff,
+            headerExpected: header.headerChecksum,
+            headerValid13: (hdrSumA & 0xffff) === header.headerChecksum,
+            headerValid16: hdrSumB === header.headerChecksum,
+            dataCalc: dataSum & 0xffff,
+            dataExpected: header.dataChecksum,
+            dataValid: (dataSum & 0xffff) === header.dataChecksum,
+        };
+    }
+
+    const pid = payload[0];
+    if (pid === 1 && payload.length === 10) {
+        const rec = parseTagLocationPacket(payload);
+        return { mode: 'single', header, record: { type: 'tag', ...rec }, checksum };
+    }
+    if (pid === 3 && payload.length === 13) {
+        const rec = parseMonitorDataPacket(payload);
+        return { mode: 'single', header, record: { type: 'monitor', ...rec }, checksum };
+    }
+    let { count, records } = parseBulkDataPayload(payload);
+    if (count === 0) {
+        const streamParsed = parseStreamingBulkPayload(payload);
+        count = streamParsed.count;
+        records = streamParsed.records;
+        return { mode: 'bulk-stream', header, count, records, checksum, remaining: streamParsed.remaining };
+    }
     return { mode: 'bulk', header, count, records, checksum };
 }
 
