@@ -1,0 +1,350 @@
+[
+    {
+        "sNo": 1,
+        "bytes": 1,
+        "index": 0,
+        "Name": "PaddingByte"
+    },
+    {
+        "sNo": 2,
+        "bytes": 9,
+        "index": 1,
+        "Name": "defaultStreamingFields"
+    },
+    {
+        "sNo": 3,
+        "bytes": 3,
+        "index": 2,
+        "Name": "TagRFID"
+    },
+    {
+        "sNo": 4,
+        "bytes": 2,
+        "index": 3,
+        "Name": "Command"
+    },
+    {
+        "sNo": 5,
+        "bytes": 1,
+        "index": 4,
+        "Name": "RSSI"
+    },
+    {
+        "sNo": 6,
+        "bytes": 1,
+        "index": 5,
+        "Name": "LBI-Retry-Motion Flag-Keys"
+    },
+    {
+        "sNo": 7,
+        "bytes": 1,
+        "index": 6,
+        "Name": "Alive-Index"
+    },
+    {
+        "sNo": 8,
+        "bytes": 3,
+        "index": 7,
+        "Name": "MonitorRFId"
+    },
+    {
+        "sNo": 9,
+        "bytes": 2,
+        "index": 8,
+        "Name": "IRID"
+    },
+    {
+        "sNo": 10,
+        "bytes": 1,
+        "index": 9,
+        "Name": "Type-DIMIR"
+    },
+    {
+        "sNo": 11,
+        "bytes": 2,
+        "index": 10,
+        "Name": "TemperatureProbe1"
+    },
+    {
+        "sNo": 12,
+        "bytes": 2,
+        "index": 11,
+        "Name": "StrongestStarID"
+    },
+    {
+        "sNo": 13,
+        "bytes": 1,
+        "index": 12,
+        "Name": "Version"
+    },
+    {
+        "sNo": 14,
+        "bytes": 6,
+        "index": 13,
+        "Name": "Reserved"
+    },
+    {
+        "sNo": 15,
+        "bytes": 2,
+        "index": 14,
+        "Name": "AssociatedStarID"
+    },
+    {
+        "sNo": 16,
+        "bytes": 2,
+        "index": 15,
+        "Name": "ReceivedStarID"
+    },
+    {
+        "sNo": 17,
+        "bytes": 4,
+        "index": 16,
+        "Name": "Time"
+    },
+    {
+        "sNo": 18,
+        "bytes": 4,
+        "index": 17,
+        "Name": "FloorID"
+    },
+    {
+        "sNo": 19,
+        "bytes": 4,
+        "index": 18,
+        "Name": "X"
+    },
+    {
+        "sNo": 20,
+        "bytes": 4,
+        "index": 19,
+        "Name": "Y"
+    },
+    {
+        "sNo": 21,
+        "bytes": 4,
+        "index": 20,
+        "Name": "Z"
+    },
+    {
+        "sNo": 22,
+        "bytes": 4,
+        "index": 25,
+        "Name": "VendorId"
+    },
+    {
+        "sNo": 23,
+        "bytes": 4,
+        "index": 26,
+        "Name": "MacId"
+    },
+    {
+        "sNo": 24,
+        "bytes": 4,
+        "index": 27,
+        "Name": "ObjectId"
+    },
+    {
+        "sNo": 25,
+        "bytes": 4,
+        "index": 28,
+        "Name": "ConfidenceFactor"
+    },
+    {
+        "sNo": 26,
+        "bytes": 4,
+        "index": 30,
+        "Name": "ControllerIP"
+    },
+    {
+        "sNo": 27,
+        "bytes": 4,
+        "index": 32,
+        "Name": "ChangedOn"
+    },
+    {
+        "sNo": 28,
+        "bytes": 4,
+        "index": 38,
+        "Name": "Latitude"
+    },
+    {
+        "sNo": 29,
+        "bytes": 4,
+        "index": 39,
+        "Name": "Longitude"
+    },
+    {
+        "sNo": 30,
+        "bytes": 2,
+        "index": 41,
+        "Name": "Module Version"
+    },
+    {
+        "sNo": 31,
+        "bytes": 2,
+        "index": 44,
+        "Name": "HumidityPercent"
+    },
+    {
+        "sNo": 32,
+        "bytes": 4,
+        "index": 45,
+        "Name": "OfflineTempTimeStamp"
+    },
+    {
+        "sNo": 33,
+        "bytes": 2,
+        "index": 46,
+        "Name": "LBIDiff"
+    },
+    {
+        "sNo": 34,
+        "bytes": 32,
+        "index": 47,
+        "Name": "CampusName"
+    },
+    {
+        "sNo": 35,
+        "bytes": 32,
+        "index": 48,
+        "Name": "BuildingName"
+    },
+    {
+        "sNo": 36,
+        "bytes": 32,
+        "index": 49,
+        "Name": "FloorName"
+    },
+    {
+        "sNo": 37,
+        "bytes": 2,
+        "index": 50,
+        "Name": "Profile"
+    },
+    {
+        "sNo": 38,
+        "bytes": 1,
+        "index": 58,
+        "Name": "OperatingMode"
+    },
+    {
+        "sNo": 39,
+        "bytes": 2,
+        "index": 52,
+        "Name": "ZoneID"
+    },
+    {
+        "sNo": 40,
+        "bytes": 2,
+        "index": 53,
+        "Name": "MeasurementRate"
+    },
+    {
+        "sNo": 41,
+        "bytes": 2,
+        "index": 54,
+        "Name": "TemperatureProbe2"
+    },
+    {
+        "sNo": 42,
+        "bytes": 1,
+        "index": 55,
+        "Name": "Probe1TempStatus"
+    },
+    {
+        "sNo": 43,
+        "bytes": 1,
+        "index": 56,
+        "Name": "Probe2TempStatus"
+    },
+    {
+        "sNo": 44,
+        "bytes": 1,
+        "index": 59,
+        "Name": "DoorAjarStatus"
+    },
+    {
+        "sNo": 45,
+        "bytes": 2,
+        "index": 60,
+        "Name": "LBIValue"
+    },
+    {
+        "sNo": 46,
+        "bytes": 2,
+        "index": 61,
+        "Name": "Res"
+    },
+    {
+        "sNo": 47,
+        "bytes": 2,
+        "index": 62,
+        "Name": "Res"
+    },
+    {
+        "sNo": 48,
+        "bytes": 1,
+        "index": 63,
+        "Name": "EnableHumidity"
+    },
+    {
+        "sNo": 49,
+        "bytes": 1,
+        "index": 64,
+        "Name": "LocationType"
+    },
+    {
+        "sNo": 50,
+        "bytes": 1,
+        "index": 80,
+        "Name": "IsEMTag"
+    },
+    {
+        "sNo": 51,
+        "bytes": 1,
+        "index": 81,
+        "Name": "DoorAjarStatus2"
+    },
+    {
+        "sNo": 52,
+        "bytes": 1,
+        "index": 82,
+        "Name": "EMTagProbe1Profile"
+    },
+    {
+        "sNo": 53,
+        "bytes": 1,
+        "index": 83,
+        "Name": "EMTagProbe2Profile"
+    },
+    {
+        "sNo": 54,
+        "bytes": 4,
+        "index": 84,
+        "Name": "Probe1 Pressure"
+    },
+    {
+        "sNo": 55,
+        "bytes": 4,
+        "index": 85,
+        "Name": "Probe2 Pressure"
+    },
+    {
+        "sNo": 56,
+        "bytes": 4,
+        "index": 86,
+        "Name": "Probe1CO2"
+    },
+    {
+        "sNo": 57,
+        "bytes": 4,
+        "index": 87,
+        "Name": "Probe2CO2"
+    },
+    {
+        "sNo": 58,
+        "bytes": 1,
+        "index": 97,
+        "Name": "iSEMWiFidisplayTag"
+    }
+]

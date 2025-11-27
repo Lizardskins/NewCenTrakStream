@@ -1,0 +1,23 @@
+{
+    "name": "newcentrakstream",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "description": "TCP buffer consumer for CenTrak Core Server feed",
+    "main": "src/index.js",
+    "scripts": {
+        "start": "node src/index.js",
+        "dev": "NODE_ENV=development node src/index.js"
+    },
+    "keywords": [
+        "centrak",
+        "tcp",
+        "buffer",
+        "feed"
+    ],
+    "author": "",
+    "license": "MIT",
+    "dependencies": {
+        "dotenv": "^16.4.5"
+    }
+}

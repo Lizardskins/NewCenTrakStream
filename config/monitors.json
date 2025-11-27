@@ -1,0 +1,194 @@
+[
+    {
+        "sNo": 1,
+        "bytes": 1,
+        "index": 0,
+        "Name": "PaddingByte"
+    },
+    {
+        "sNo": 2,
+        "bytes": 12,
+        "index": 1,
+        "Name": "defaultStreamingFields"
+    },
+    {
+        "sNo": 3,
+        "bytes": 3,
+        "index": 2,
+        "Name": "Monitor RFID"
+    },
+    {
+        "sNo": 4,
+        "bytes": 2,
+        "index": 3,
+        "Name": "Command"
+    },
+    {
+        "sNo": 5,
+        "bytes": 1,
+        "index": 4,
+        "Name": "Rssi"
+    },
+    {
+        "sNo": 6,
+        "bytes": 1,
+        "index": 5,
+        "Name": "Status"
+    },
+    {
+        "sNo": 7,
+        "bytes": 6,
+        "index": 6,
+        "Name": "associatedStarMacId"
+    },
+    {
+        "sNo": 8,
+        "bytes": 2,
+        "index": 7,
+        "Name": "IRID"
+    },
+    {
+        "sNo": 9,
+        "bytes": 1,
+        "index": 8,
+        "Name": "powerLevelType"
+    },
+    {
+        "sNo": 10,
+        "bytes": 2,
+        "index": 9,
+        "Name": "strongestStarId"
+    },
+    {
+        "sNo": 11,
+        "bytes": 1,
+        "index": 10,
+        "Name": "version"
+    },
+    {
+        "sNo": 12,
+        "bytes": 2,
+        "index": 11,
+        "Name": "associatedStarId"
+    },
+    {
+        "sNo": 13,
+        "bytes": 2,
+        "index": 12,
+        "Name": "receivedStarId"
+    },
+    {
+        "sNo": 14,
+        "bytes": 4,
+        "index": 13,
+        "Name": "time"
+    },
+    {
+        "sNo": 15,
+        "bytes": 4,
+        "index": 14,
+        "Name": "floorId"
+    },
+    {
+        "sNo": 16,
+        "bytes": 4,
+        "index": 15,
+        "Name": "x"
+    },
+    {
+        "sNo": 17,
+        "bytes": 4,
+        "index": 16,
+        "Name": "y"
+    },
+    {
+        "sNo": 18,
+        "bytes": 4,
+        "index": 17,
+        "Name": "z"
+    },
+    {
+        "sNo": 19,
+        "bytes": 4,
+        "index": 22,
+        "Name": "vendorId"
+    },
+    {
+        "sNo": 20,
+        "bytes": 6,
+        "index": 23,
+        "Name": "macId"
+    },
+    {
+        "sNo": 21,
+        "bytes": 4,
+        "index": 24,
+        "Name": "objectId"
+    },
+    {
+        "sNo": 22,
+        "bytes": 4,
+        "index": 25,
+        "Name": "confidenceFactor"
+    },
+    {
+        "sNo": 23,
+        "bytes": 4,
+        "index": 27,
+        "Name": "controllerIP"
+    },
+    {
+        "sNo": 24,
+        "bytes": 4,
+        "index": 29,
+        "Name": "changedOn"
+    },
+    {
+        "sNo": 25,
+        "bytes": 2,
+        "index": 34,
+        "Name": "moduleVersion"
+    },
+    {
+        "sNo": 26,
+        "bytes": 32,
+        "index": 37,
+        "Name": "campusName"
+    },
+    {
+        "sNo": 27,
+        "bytes": 32,
+        "index": 38,
+        "Name": "buildingName"
+    },
+    {
+        "sNo": 28,
+        "bytes": 32,
+        "index": 39,
+        "Name": "floorName"
+    },
+    {
+        "sNo": 29,
+        "bytes": 2,
+        "index": 40,
+        "Name": "profile"
+    },
+    {
+        "sNo": 30,
+        "bytes": 50,
+        "index": 41,
+        "Name": "name"
+    },
+    {
+        "sNo": 31,
+        "bytes": 2,
+        "index": 42,
+        "Name": "LBIValue"
+    },
+    {
+        "sNo": 32,
+        "bytes": 1,
+        "index": 43,
+        "Name": "keys"
+    }
+]
