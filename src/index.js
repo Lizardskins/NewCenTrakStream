@@ -192,26 +192,40 @@ udp.on('message', (msg, rinfo) => {
         if (msg.length === 16) {
             // Store header and expected payload length using parseBulkHeader
             const header = parseBulkHeader(msg);
-            udp._pending.set(key, { header, headerBuf: msg, expected: header.dataLength, chunks: [], received: 0 });
+            // Support multiple concurrent header/payload pairs per sender (queue)
+            const queue = udp._pending.get(key) || [];
+            queue.push({ header, headerBuf: msg, expected: header.dataLength, chunks: [], received: 0 });
+            udp._pending.set(key, queue);
             const parsed = { mode: 'header', header, _from: key, _hex: msg.toString('hex') };
             output(parsed);
             return;
         }
 
         if (pending) {
-            // We have a stored header; accumulate payload chunks until expected length is met
-            pending.chunks.push(msg);
-            pending.received += msg.length;
-            if (pending.received >= pending.expected) {
-                const payload = Buffer.concat(pending.chunks).subarray(0, pending.expected);
-                const combined = Buffer.concat([pending.headerBuf, payload]);
-                const routed = parseHeaderAndRoute(combined, true);
-                routed._from = key;
-                routed._hex = payload.toString('hex');
-                output(routed);
-                udp._pending.delete(key);
+            // There may be multiple pending headers; append this payload chunk to the oldest that still needs bytes
+            const queue = udp._pending.get(key) || [];
+            if (queue.length > 0) {
+                const current = queue[0];
+                current.chunks.push(msg);
+                current.received += msg.length;
+                if (current.received >= current.expected) {
+                    const payload = Buffer.concat(current.chunks).subarray(0, current.expected);
+                    const combined = Buffer.concat([current.headerBuf, payload]);
+                    const routed = parseHeaderAndRoute(combined, true);
+                    routed._from = key;
+                    routed._hex = payload.toString('hex');
+                    output(routed);
+                    // Remove the consumed header from the queue
+                    queue.shift();
+                }
+                // Update or clear queue
+                if (queue.length > 0) {
+                    udp._pending.set(key, queue);
+                } else {
+                    udp._pending.delete(key);
+                }
+                return;
             }
-            return;
         }
 
         // If no pending header, fall back to auto-detect on standalone buffers
