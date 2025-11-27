@@ -86,15 +86,16 @@ function autoDetectAndParse(buffer) {
         return { mode: 'single', ...parseMonitorDataPacket(buffer) };
     }
 
-    // Bulk mode: header is at least 13 bytes and first byte is cycle counter (typically not 1 or 3)
-    // Check if we have at least header length and it looks like bulk mode
-    if (buffer.length >= 13 && firstByte !== 1 && firstByte !== 3) {
+    // Bulk mode: header is 13 bytes. Try parsing if buffer is long enough and header's length matches.
+    if (buffer.length >= 13) {
         try {
-            return parseBulkBuffer(buffer, true); // Enable checksum verification
-        } catch (err) {
-            // If bulk parsing fails, fall back to generic frame parser
-            log(`Bulk parse failed: ${err.message}`);
-            return parseFrame(buffer);
+            const headerDataLength = buffer.readUInt16LE(7);
+            const totalExpected = 13 + headerDataLength;
+            if (buffer.length >= totalExpected) {
+                return parseBulkBuffer(buffer, true);
+            }
+        } catch (e) {
+            // ignore and fall through to generic parser
         }
     }
 
