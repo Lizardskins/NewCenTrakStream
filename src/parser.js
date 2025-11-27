@@ -417,17 +417,28 @@ export function parseBulkBuffer(buffer, verifyChecksums = true) {
 
     let checksum = undefined;
     if (verifyChecksums) {
-        // Header checksum: sum of first 11 bytes (exclude last 2 bytes at [11-12])
-        // Note: With 16-byte header, checksum algorithm may differ; keeping prior assumption.
-        const hdrSum = checksumSum(buffer.subarray(0, 11));
-        const hdrValid = (hdrSum & 0xffff) === header.headerChecksum;
-        // Data checksum: sum of payload bytes
+        // Endianness per spec: values are stored little-endian (0x1122 stored as 0x2211).
+        // We already read using readUInt16LE, so comparisons should be done against LE values.
+
+        // Header checksum variant A (spec 13-byte header): sum of first 11 bytes (exclude [11-12] checksum field)
+        const hdrSumA = checksumSum(buffer.subarray(0, 11));
+        const hdrValidA = (hdrSumA & 0xffff) === header.headerChecksum;
+
+        // Header checksum variant B (extended 16-byte header): sum bytes [0..10] plus [13..15], exclude [11-12]
+        const hdrPart1 = buffer.subarray(0, 11);
+        const hdrPart2 = buffer.subarray(13, 16);
+        const hdrSumB = (checksumSum(hdrPart1) + checksumSum(hdrPart2)) & 0xffff;
+        const hdrValidB = hdrSumB === header.headerChecksum;
+
+        // Data checksum: sum of payload bytes (LE compare)
         const dataSum = checksumSum(payload);
         const dataValid = (dataSum & 0xffff) === header.dataChecksum;
         checksum = {
-            headerCalc: hdrSum & 0xffff,
+            headerCalc13: hdrSumA & 0xffff,
+            headerCalc16: hdrSumB & 0xffff,
             headerExpected: header.headerChecksum,
-            headerValid: hdrValid,
+            headerValid13: hdrValidA,
+            headerValid16: hdrValidB,
             dataCalc: dataSum & 0xffff,
             dataExpected: header.dataChecksum,
             dataValid: dataValid,
@@ -481,14 +492,21 @@ export function parseHeaderAndRoute(buffer, verifyChecksums = true) {
     // Optional checksum verification
     let checksum = undefined;
     if (verifyChecksums) {
-        const hdrSum = checksumSum(buffer.subarray(0, 11));
-        const hdrValid = (hdrSum & 0xffff) === header.headerChecksum;
+        // Variant checks as above
+        const hdrSumA = checksumSum(buffer.subarray(0, 11));
+        const hdrValidA = (hdrSumA & 0xffff) === header.headerChecksum;
+        const hdrPart1 = buffer.subarray(0, 11);
+        const hdrPart2 = buffer.subarray(13, 16);
+        const hdrSumB = (checksumSum(hdrPart1) + checksumSum(hdrPart2)) & 0xffff;
+        const hdrValidB = hdrSumB === header.headerChecksum;
         const dataSum = checksumSum(payload);
         const dataValid = (dataSum & 0xffff) === header.dataChecksum;
         checksum = {
-            headerCalc: hdrSum & 0xffff,
+            headerCalc13: hdrSumA & 0xffff,
+            headerCalc16: hdrSumB & 0xffff,
             headerExpected: header.headerChecksum,
-            headerValid: hdrValid,
+            headerValid13: hdrValidA,
+            headerValid16: hdrValidB,
             dataCalc: dataSum & 0xffff,
             dataExpected: header.dataChecksum,
             dataValid: dataValid,
