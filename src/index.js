@@ -111,11 +111,15 @@ udp.on('listening', () => {
 });
 
 udp.on('message', (msg, rinfo) => {
+    // Basic receive log to help diagnose input issues
+    log(`Received ${msg.length} bytes from ${rinfo.address}:${rinfo.port}`);
     try {
         // Auto-detect message type based on first byte and length
         const parsed = autoDetectAndParse(msg);
         // Attach sender info for context
         parsed._from = `${rinfo.address}:${rinfo.port}`;
+        // Include raw hex preview for debugging small messages
+        parsed._hex = msg.toString('hex');
         output(parsed);
     } catch (err) {
         log('Parse error:', err.message);
@@ -132,7 +136,8 @@ udp.on('error', (err) => {
     process.exit(1);
 });
 
-udp.bind(PORT, HOST);
+// Bind to port only; OS will listen on all interfaces by default (0.0.0.0)
+udp.bind(PORT);
 
 // Graceful shutdown
 process.on('SIGINT', () => {
