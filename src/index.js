@@ -8,6 +8,7 @@ import {
     parseTagLocationPacket,
     parseMonitorDataPacket,
     parseBulkBuffer,
+    parseBulkBufferMulti,
     parseTagStreamingPacket,
     expectedTagStreamingLength
 } from './parser.js';
@@ -94,6 +95,12 @@ function autoDetectAndParse(buffer) {
             const headerDataLength = buffer.readUInt16LE(7);
             const totalExpected = 13 + headerDataLength;
             if (buffer.length >= totalExpected) {
+                // If buffer contains multiple bulk frames back-to-back, parse them all
+                const multi = parseBulkBufferMulti(buffer, true);
+                if (multi.frames && multi.frames.length > 1) {
+                    return multi;
+                }
+                // Else parse single bulk
                 return parseBulkBuffer(buffer, true);
             }
         } catch (e) {

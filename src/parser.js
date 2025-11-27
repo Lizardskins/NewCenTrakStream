@@ -415,6 +415,32 @@ export function parseBulkBuffer(buffer, verifyChecksums = false) {
     return { mode: 'bulk', header, count, records, checksum };
 }
 
+// Parse a buffer that may contain multiple back-to-back bulk frames
+export function parseBulkBufferMulti(buffer, verifyChecksums = false) {
+    const bulks = [];
+    let offset = 0;
+    while (offset + 13 <= buffer.length) {
+        const hdrSlice = buffer.subarray(offset, offset + 13);
+        let header;
+        try {
+            header = parseBulkHeader(hdrSlice);
+        } catch {
+            // Not a valid header; break to avoid mis-parsing
+            break;
+        }
+        const totalLen = 13 + header.dataLength;
+        if (offset + totalLen > buffer.length) {
+            // Incomplete payload left; stop
+            break;
+        }
+        const frame = buffer.subarray(offset, offset + totalLen);
+        const parsed = parseBulkBuffer(frame, verifyChecksums);
+        bulks.push(parsed);
+        offset += totalLen;
+    }
+    return { mode: 'bulk-multi', frames: bulks, bytesConsumed: offset, remaining: buffer.length - offset };
+}
+
 // ---------------- Checksum (API 1.4) ----------------
 // Sum all bytes modulo 0xFFFF
 export function checksumSum(buf) {
