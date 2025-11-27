@@ -239,6 +239,18 @@ export function computeHeaderChecksumVariants(headerBuf16) {
     const invWord13 = (~wordSum13) & 0xffff;
     const invWord16 = (~wordSum16) & 0xffff;
 
+    // CRC16 variants over header (exclude checksum field at [11..12])
+    const partA = headerBuf16.subarray(0, 11);
+    const partB = headerBuf16.subarray(13, 16);
+    const hdrBytes13 = partA;
+    const hdrBytes16 = Buffer.concat([partA, partB]);
+    const crcIBM13 = crc16IBM(hdrBytes13);
+    const crcIBM16 = crc16IBM(hdrBytes16);
+    const crcX2513 = crc16CCITT_X25(hdrBytes13);
+    const crcX2516 = crc16CCITT_X25(hdrBytes16);
+    const crcXModem13 = crc16CCITT_XModem(hdrBytes13);
+    const crcXModem16 = crc16CCITT_XModem(hdrBytes16);
+
     return {
         headerCalc13: sum13,
         headerCalc16: sum16,
@@ -268,6 +280,19 @@ export function computeHeaderChecksumVariants(headerBuf16) {
         headerCalcAllNoChecksum_inv: invC,
         headerCalcWord13_inv: invWord13,
         headerCalcWord16_inv: invWord16,
+        // CRC comparisons (LE)
+        headerCalcCRC16_IBM_13: crcIBM13,
+        headerCalcCRC16_IBM_16: crcIBM16,
+        headerValidCRC16_IBM_13: crcIBM13 === expectedLE,
+        headerValidCRC16_IBM_16: crcIBM16 === expectedLE,
+        headerCalcCRC16_X25_13: crcX2513,
+        headerCalcCRC16_X25_16: crcX2516,
+        headerValidCRC16_X25_13: crcX2513 === expectedLE,
+        headerValidCRC16_X25_16: crcX2516 === expectedLE,
+        headerCalcCRC16_XModem_13: crcXModem13,
+        headerCalcCRC16_XModem_16: crcXModem16,
+        headerValidCRC16_XModem_13: crcXModem13 === expectedLE,
+        headerValidCRC16_XModem_16: crcXModem16 === expectedLE,
     };
 }
 
@@ -601,6 +626,57 @@ export function checksumSum(buf) {
         sum += buf[i];
     }
     return sum & 0xffff;
+}
+
+// ---------------- CRC16 helpers (common variants) ----------------
+function crc16IBM(buf) {
+    // Polynomial 0xA001 (reversed 0x8005), init 0xFFFF
+    let crc = 0xffff;
+    for (let i = 0; i < buf.length; i++) {
+        crc ^= buf[i];
+        for (let j = 0; j < 8; j++) {
+            if (crc & 1) {
+                crc = (crc >>> 1) ^ 0xA001;
+            } else {
+                crc = crc >>> 1;
+            }
+        }
+    }
+    return crc & 0xffff;
+}
+
+function crc16CCITT_X25(buf) {
+    // Polynomial 0x1021, init 0xFFFF, xorout 0xFFFF
+    let crc = 0xffff;
+    for (let i = 0; i < buf.length; i++) {
+        crc ^= buf[i] << 8;
+        for (let j = 0; j < 8; j++) {
+            if (crc & 0x8000) {
+                crc = (crc << 1) ^ 0x1021;
+            } else {
+                crc = crc << 1;
+            }
+            crc &= 0xffff;
+        }
+    }
+    return (crc ^ 0xffff) & 0xffff;
+}
+
+function crc16CCITT_XModem(buf) {
+    // Polynomial 0x1021, init 0x0000, no xorout
+    let crc = 0x0000;
+    for (let i = 0; i < buf.length; i++) {
+        crc ^= buf[i] << 8;
+        for (let j = 0; j < 8; j++) {
+            if (crc & 0x8000) {
+                crc = (crc << 1) ^ 0x1021;
+            } else {
+                crc = crc << 1;
+            }
+            crc &= 0xffff;
+        }
+    }
+    return crc & 0xffff;
 }
 
 // ============================================================================
