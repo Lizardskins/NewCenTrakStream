@@ -17,7 +17,7 @@ dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 
 // Config
 const HOST = process.env.HOST || '0.0.0.0';
-const PORT = Number(process.env.PORT || 5000);
+const PORT = Number(process.env.PORT || 7165);
 const OUTPUT_MODE = process.env.OUTPUT_MODE || 'pretty'; // 'pretty' | 'ndjson' | 'raw'
 
 // Optional: load streaming configs for monitors/tags if present
@@ -44,6 +44,7 @@ if (tagsConfig) {
 }
 
 let udp;
+
 
 function log(msg, ...args) {
     const ts = new Date().toISOString();
@@ -102,7 +103,8 @@ function autoDetectAndParse(buffer) {
 }
 
 // Create UDP server to listen for incoming CenTrak data
-udp = dgram.createSocket('udp4');
+udp = dgram.createSocket('udp4');// Bind to port only; OS will listen on all interfaces by default (0.0.0.0)
+udp.bind(PORT);
 
 udp.on('listening', () => {
     const addr = udp.address();
@@ -136,8 +138,7 @@ udp.on('error', (err) => {
     process.exit(1);
 });
 
-// Bind to port only; OS will listen on all interfaces by default (0.0.0.0)
-udp.bind(PORT);
+
 
 // Graceful shutdown
 process.on('SIGINT', () => {
