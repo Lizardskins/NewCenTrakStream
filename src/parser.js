@@ -886,3 +886,58 @@ export function buildMonitorDescriptors() {
         parse: monitorParseFunctions[field.index] || ((msg) => msg)
     }));
 }
+
+// ============================================================================
+// Tag streaming parsing (fixed-length 115B frames)
+// ============================================================================
+// Default selected field indexes for tag streaming (mirrors prior working app.js)
+const defaultTagStreamingIndexes = [
+    1, 9, 80, 97, 10, 54, 63, 44, 55, 56, 45, 11, 14, 15, 4, 16, 18, 19, 48, 49, 3, 8, 60
+];
+
+function loadTagsConfig() {
+    const configPath = path.resolve(__dirname, '..', 'config', 'tags.json');
+    if (!fs.existsSync(configPath)) return null;
+    try {
+        return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    } catch (e) {
+        console.warn('Failed to parse tags.json:', e.message);
+        return null;
+    }
+}
+
+export function buildTagStreamingDescriptors(selected = defaultTagStreamingIndexes) {
+    const config = loadTagsConfig();
+    const byIndex = new Map();
+    if (Array.isArray(config)) {
+        for (const f of config) byIndex.set(f.index, f);
+    }
+    const descriptors = [];
+    let start = 0;
+    for (const idx of selected) {
+        const meta = byIndex.get(idx);
+        if (!meta) continue;
+        const parseFn = tagParseFunctions[idx] || ((msg) => msg);
+        descriptors.push({ name: meta.Name, bytes: meta.bytes, start, parse: parseFn, index: idx });
+        start += meta.bytes;
+    }
+    return descriptors;
+}
+
+export function expectedTagStreamingLength() {
+    return buildTagStreamingDescriptors().reduce((acc, d) => acc + d.bytes, 0);
+}
+
+export function parseTagStreamingPacket(buffer) {
+    const desc = buildTagStreamingDescriptors();
+    const total = desc.reduce((a, d) => a + d.bytes, 0);
+    if (buffer.length !== total) {
+        // If shorter, throw; if longer, allow parsing of the first `total` bytes
+        if (buffer.length < total) {
+            throw new Error(`Tag streaming length mismatch: got ${buffer.length}, expected ${total}`);
+        }
+        buffer = buffer.subarray(0, total);
+    }
+    const fields = runDescriptors(buffer, desc);
+    return { type: 'tag-stream', bytes: buffer.length, fields };
+}

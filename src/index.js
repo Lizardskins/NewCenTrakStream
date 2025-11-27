@@ -7,7 +7,9 @@ import {
     parseFrame,
     parseTagLocationPacket,
     parseMonitorDataPacket,
-    parseBulkBuffer
+    parseBulkBuffer,
+    parseTagStreamingPacket,
+    expectedTagStreamingLength
 } from './parser.js';
 
 // Resolve project root for dotenv
@@ -98,6 +100,14 @@ function autoDetectAndParse(buffer) {
             // ignore and fall through to generic parser
         }
     }
+
+    // Tag streaming (fixed selection) detection by expected length
+    try {
+        const len = expectedTagStreamingLength();
+        if (buffer.length === len) {
+            return parseTagStreamingPacket(buffer);
+        }
+    } catch { }
 
     // Fallback to generic frame parser for unknown formats
     return parseFrame(buffer);
