@@ -207,6 +207,51 @@ export function parseBulkHeader(buffer) {
     };
 }
 
+// Alternate header parser matching user's working offsets/byte-order
+// Derived from provided snippet:
+// - cc at byte[0]
+// - mac at bytes[1..7]
+// - starId from bytes[8..10], with byte swap
+// - payload length from bytes[10..12], with nibble/byte reorder used by user's converter
+export function parseBulkHeaderUserStyle(buffer) {
+    if (buffer.length < 12) {
+        throw new Error(`Header too short for user-style parse: ${buffer.length}`);
+    }
+    const cycleCounter = parseInt(buffer.subarray(0, 1).toString('hex'), 16);
+    const macHex = buffer.subarray(1, 7).toString('hex');
+    const starMac = macHex.match(/.{1,2}/g)?.join(':') ?? '';
+
+    // Star ID from bytes [8..10] (2 bytes), swap byte order
+    const starIdHexRaw = buffer.subarray(8, 10).toString('hex');
+    const starIdHex = starIdHexRaw.slice(2, 4) + starIdHexRaw.slice(0, 2);
+    const starId = parseInt(starIdHex, 16);
+
+    // Payload/Data Length from bytes [10..12] (2 bytes), custom reorder per user's code
+    const payloadHexRaw = buffer.subarray(10, 12).toString('hex');
+    // Recompose as last nibble + first two bytes (per user code). If length is 4, slice(3,4) is last nibble.
+    // We'll also provide a safer fallback to normal LE/BE reads for comparison.
+    const payloadReordered = payloadHexRaw.slice(3, 4) + payloadHexRaw.slice(0, 2);
+    const dataLengthReordered = parseInt(payloadReordered, 16);
+    const dataLengthLE = buffer.readUInt16LE(10);
+    const dataLengthBE = buffer.readUInt16BE(10);
+
+    // Checksums: if present at [11..13] in this layout, expose raw view for debugging
+    const dataChecksumLE = buffer.length >= 12 ? buffer.readUInt16LE(9) : undefined;
+    const headerChecksumLE = buffer.length >= 14 ? buffer.readUInt16LE(11) : undefined;
+
+    return {
+        cycleCounter,
+        starMac,
+        starId,
+        dataLengthUserReorder: dataLengthReordered,
+        dataLengthLE,
+        dataLengthBE,
+        dataChecksum: dataChecksumLE,
+        headerChecksum: headerChecksumLE,
+        headerHex: buffer.subarray(0, Math.min(16, buffer.length)).toString('hex'),
+    };
+}
+
 // Compute checksum variants using only the 16-byte header
 export function computeHeaderChecksumVariants(headerBuf16) {
     if (!Buffer.isBuffer(headerBuf16) || headerBuf16.length < 16) {
@@ -250,6 +295,12 @@ export function computeHeaderChecksumVariants(headerBuf16) {
     const crcX2516 = crc16CCITT_X25(hdrBytes16);
     const crcXModem13 = crc16CCITT_XModem(hdrBytes13);
     const crcXModem16 = crc16CCITT_XModem(hdrBytes16);
+    const crcKermit13 = crc16Kermit(hdrBytes13);
+    const crcKermit16 = crc16Kermit(hdrBytes16);
+    const crcAugCCITT13 = crc16AugCCITT(hdrBytes13);
+    const crcAugCCITT16 = crc16AugCCITT(hdrBytes16);
+    const crcBUYPASS13 = crc16BUYPASS(hdrBytes13);
+    const crcBUYPASS16 = crc16BUYPASS(hdrBytes16);
 
     return {
         headerCalc13: sum13,
@@ -293,6 +344,18 @@ export function computeHeaderChecksumVariants(headerBuf16) {
         headerCalcCRC16_XModem_16: crcXModem16,
         headerValidCRC16_XModem_13: crcXModem13 === expectedLE,
         headerValidCRC16_XModem_16: crcXModem16 === expectedLE,
+        headerCalcCRC16_Kermit_13: crcKermit13,
+        headerCalcCRC16_Kermit_16: crcKermit16,
+        headerValidCRC16_Kermit_13: crcKermit13 === expectedLE,
+        headerValidCRC16_Kermit_16: crcKermit16 === expectedLE,
+        headerCalcCRC16_AugCCITT_13: crcAugCCITT13,
+        headerCalcCRC16_AugCCITT_16: crcAugCCITT16,
+        headerValidCRC16_AugCCITT_13: crcAugCCITT13 === expectedLE,
+        headerValidCRC16_AugCCITT_16: crcAugCCITT16 === expectedLE,
+        headerCalcCRC16_BUYPASS_13: crcBUYPASS13,
+        headerCalcCRC16_BUYPASS_16: crcBUYPASS16,
+        headerValidCRC16_BUYPASS_13: crcBUYPASS13 === expectedLE,
+        headerValidCRC16_BUYPASS_16: crcBUYPASS16 === expectedLE,
     };
 }
 
@@ -674,6 +737,56 @@ function crc16CCITT_XModem(buf) {
                 crc = crc << 1;
             }
             crc &= 0xffff;
+        }
+    }
+    return crc & 0xffff;
+}
+
+function crc16Kermit(buf) {
+    // Polynomial 0x1021, init 0x0000, reflected in/out, xorout 0x0000
+    let crc = 0x0000;
+    for (let i = 0; i < buf.length; i++) {
+        let b = buf[i];
+        for (let j = 0; j < 8; j++) {
+            const mix = (crc ^ b) & 0x0001;
+            crc >>= 1;
+            if (mix) crc ^= 0x8408; // reflected 0x1021
+            b >>= 1;
+        }
+    }
+    // Reflected output
+    crc = ((crc & 0xff) << 8) | (crc >> 8);
+    return crc & 0xffff;
+}
+
+function crc16AugCCITT(buf) {
+    // Polynomial 0x1021, init 0x1D0F, no xorout
+    let crc = 0x1d0f;
+    for (let i = 0; i < buf.length; i++) {
+        crc ^= buf[i] << 8;
+        for (let j = 0; j < 8; j++) {
+            if (crc & 0x8000) {
+                crc = (crc << 1) ^ 0x1021;
+            } else {
+                crc = crc << 1;
+            }
+            crc &= 0xffff;
+        }
+    }
+    return crc & 0xffff;
+}
+
+function crc16BUYPASS(buf) {
+    // Polynomial 0x8005, init 0x0000
+    let crc = 0x0000;
+    for (let i = 0; i < buf.length; i++) {
+        crc ^= buf[i];
+        for (let j = 0; j < 8; j++) {
+            if (crc & 1) {
+                crc = (crc >>> 1) ^ 0xA001; // reflected 0x8005
+            } else {
+                crc = crc >>> 1;
+            }
         }
     }
     return crc & 0xffff;

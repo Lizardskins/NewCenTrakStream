@@ -14,7 +14,7 @@ import {
     parseMonitorStreamingPacket,
     expectedMonitorStreamingLength
 } from './parser.js';
-import { parseHeaderAndRoute, parseBulkHeader, computeHeaderChecksumVariants } from './parser.js';
+import { parseHeaderAndRoute, parseBulkHeader, computeHeaderChecksumVariants, parseBulkHeaderUserStyle } from './parser.js';
 
 // Resolve project root for dotenv
 const __filename = fileURLToPath(import.meta.url);
@@ -197,7 +197,8 @@ udp.on('message', (msg, rinfo) => {
             queue.push({ header, headerBuf: msg, expected: header.dataLength, chunks: [], received: 0 });
             udp._pending.set(key, queue);
             const hdrChecks = computeHeaderChecksumVariants(msg);
-            const parsed = { mode: 'header', header, checksum: hdrChecks, _from: key, _hex: msg.toString('hex') };
+            const altHeader = parseBulkHeaderUserStyle(msg);
+            const parsed = { mode: 'header', header, altHeader, checksum: hdrChecks, _from: key, _hex: msg.toString('hex') };
             output(parsed);
             return;
         }
